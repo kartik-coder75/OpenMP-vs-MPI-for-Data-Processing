@@ -37,11 +37,13 @@ Every run was verified against this exact value to confirm data race prevention 
 │   └── benchmark_data.csv        # Tabulated execution times and metrics
 ├── graphs/
 │   ├── execution_time_comparison.png
+│   ├── generate_plots.py         # Script that generates the benchmark plots
 │   └── speedup_comparison.png
 ├── presentation/
 │   └── pgc_lab_evaluation.pptx   # Final Lab Defense Slide Deck
 ├── report/
-│   └── lab_evaluation_report.md  # Detailed technical evaluation report
+│   ├── lab_evaluation_report.md  # Detailed technical evaluation report
+│   └── sequential-omp-mpi-benchmark-execution.png  # Screenshot of benchmark runs
 ├── results/
 │   └── terminal_outputs.txt      # Raw console logs from WSL execution
 ├── src/
