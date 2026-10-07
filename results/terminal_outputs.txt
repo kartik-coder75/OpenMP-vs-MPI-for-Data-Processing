@@ -1,0 +1,59 @@
+======================================================================
+PARALLEL & GPU COMPUTING (PGC) LAB: BENCHMARK LOGS
+Platform: Ubuntu 24.04 on WSL2 (x86_64)
+Kernel: Linux 6.x
+Toolchain: GCC 13 (-O3), MPICH 4.3.2
+======================================================================
+
+1. SEQUENTIAL BASELINE
+$ ./baseline
+[Sequential] Result: 350000000.00 | Time: 0.0653 seconds
+
+2. OPENMP BENCHMARKS
+$ OMP_NUM_THREADS=2 ./omp_bench
+[OpenMP - 2 Threads] Result: 350000000.00 | Time: 0.0434 seconds
+
+$ OMP_NUM_THREADS=4 ./omp_bench
+[OpenMP - 4 Threads] Result: 350000000.00 | Time: 0.0327 seconds
+
+$ OMP_NUM_THREADS=8 ./omp_bench
+[OpenMP - 8 Threads] Result: 350000000.00 | Time: 0.0250 seconds
+
+3. MPI BENCHMARKS (MPICH 4.3.2)
+$ mpirun -np 2 ./mpi_bench
+[MPI - 2 Processes] Result: 350000000.00 | Time: 0.0378 seconds
+
+$ mpirun -np 4 ./mpi_bench
+[MPI - 4 Processes] Result: 350000000.00 | Time: 0.0249 seconds
+
+$ mpirun -np 8 ./mpi_bench
+[MPI - 8 Processes] Result: 350000000.00 | Time: 0.0246 seconds======================================================================
+PARALLEL & GPU COMPUTING (PGC) LAB: BENCHMARK LOGS
+Platform: Ubuntu 24.04 on WSL2 (x86_64)
+Kernel: Linux 6.x
+Toolchain: GCC 13 (-O3), MPICH 4.3.2
+======================================================================
+
+1. SEQUENTIAL BASELINE
+$ ./baseline
+[Sequential] Result: 350000000.00 | Time: 0.0653 seconds
+
+2. OPENMP BENCHMARKS
+$ OMP_NUM_THREADS=2 ./omp_bench
+[OpenMP - 2 Threads] Result: 350000000.00 | Time: 0.0434 seconds
+
+$ OMP_NUM_THREADS=4 ./omp_bench
+[OpenMP - 4 Threads] Result: 350000000.00 | Time: 0.0327 seconds
+
+$ OMP_NUM_THREADS=8 ./omp_bench
+[OpenMP - 8 Threads] Result: 350000000.00 | Time: 0.0250 seconds
+
+3. MPI BENCHMARKS (MPICH 4.3.2)
+$ mpirun -np 2 ./mpi_bench
+[MPI - 2 Processes] Result: 350000000.00 | Time: 0.0378 seconds
+
+$ mpirun -np 4 ./mpi_bench
+[MPI - 4 Processes] Result: 350000000.00 | Time: 0.0249 seconds
+
+$ mpirun -np 8 ./mpi_bench
+[MPI - 8 Processes] Result: 350000000.00 | Time: 0.0246 seconds
