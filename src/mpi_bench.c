@@ -1,23 +1,4 @@
-#if defined(_MSC_VER) && !defined(__linux__)
-    /* Stub for Windows VS Code IntelliSense to suppress missing header error */
-    typedef int MPI_Comm;
-    typedef int MPI_Datatype;
-    typedef int MPI_Op;
-    #define MPI_COMM_WORLD 0
-    #define MPI_DOUBLE 0
-    #define MPI_SUM 0
-    int MPI_Init(int*, char***);
-    int MPI_Comm_rank(MPI_Comm, int*);
-    int MPI_Comm_size(MPI_Comm, int*);
-    void MPI_Abort(MPI_Comm, int);
-    int MPI_Barrier(MPI_Comm);
-    double MPI_Wtime(void);
-    int MPI_Reduce(const void*, void*, int, MPI_Datatype, MPI_Op, int, MPI_Comm);
-    int MPI_Finalize(void);
-#else
-    /* Real MPI header used by mpicc in Linux/WSL */
-    #include <mpi.h>
-#endif
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
