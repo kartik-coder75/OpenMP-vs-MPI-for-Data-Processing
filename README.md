@@ -1,153 +1,174 @@
-# OpenMP vs. MPI for Data Processing
+# OpenMP vs MPI for Data Processing
 
-A comprehensive experimental evaluation comparing shared-memory parallelism (**OpenMP**) against distributed-memory message passing (**MPI**) on an identical data processing and reduction operation over a 100,000,000-element dataset.
+Mini project for **Parallel and GPU Computing (26ECAC304)**.
+Theme: perform the same dataset operations with OpenMP and MPI, then compare execution time, speedup and efficiency.
 
----
+## 1. What we did
 
-## 1. Introduction & Objectives
+1. Took 4 months of NYC Yellow Taxi trip data (47.2 million trips) and extracted the `trip_distance` column into one binary file (378 MB of doubles).
+2. Wrote three programs that compute the same statistics: **sequential** (baseline), **OpenMP** (shared memory, threads) and **MPI** (distributed memory, processes).
+3. Defined two operations:
+   - **Mode 0, light:** count, min, max, mean, standard deviation, number of trips over 10 miles, histogram.
+   - **Mode 1, heavy:** everything in mode 0 plus the mean and standard deviation of log(distance).
+4. Checked that all three programs give identical results (see section 7).
+5. Ran a benchmark: 5 data sizes x 2 modes x (1 sequential + 5 OpenMP + 5 MPI configurations) x 5 repeats = **550 timed runs**.
+6. Computed speedup and efficiency, drew the graphs (`graphs/`) and built the presentation (`report/PGC_OpenMP_vs_MPI.pptx`).
 
-High-performance computing relies on two primary paradigms for CPU parallelization:
-- **OpenMP (Shared-Memory Model):** Operates on a unified address space where threads communicate implicitly through shared memory, coordinated by compiler pragmas and runtime thread pools.
-- **MPI (Distributed-Memory Model):** Operates under a shared-nothing architecture where independent processes maintain isolated address spaces and communicate via explicit network or IPC messaging.
+**Main finding:** OpenMP is faster on one machine. MPI's computation scales as well as OpenMP's, but rank 0 must scatter the whole 378 MB to the other processes, and that communication does not shrink as processes are added.
 
-### Lab Evaluation Objective
-1. Implement the exact same data transformation and reduction kernel in Sequential C, OpenMP, and MPI.
-2. Ensure mathematical and numerical invariance across all executions.
-3. Measure wall-clock execution time across varying processing units ($p \in \{1, 2, 4, 8\}$).
-4. Quantify and evaluate **Speedup ($S_p$)** and **Parallel Efficiency ($E_p$)**.
+## 2. Folder layout
 
----
-
-## 2. Computational Kernel & Mathematical Formulation
-
-The computational kernel performs a fused vector transformation and global summation reduction over a dataset of $N = 100,000,000$ double-precision floating-point numbers (~800 MB in memory):
-
-$$\text{Result} = \sum_{i=0}^{N-1} \big(A[i] \times 2.0 + 1.5\big) \quad \text{where } A[i] = 1.0 \ \forall i$$
-
-$$\text{Theoretical Invariant} = 100,000,000 \times (1.0 \times 2.0 + 1.5) = 350,000,000.00$$
-
-Every run was verified against this exact value to confirm data race prevention and reduction correctness.
-
----
-
-## 3. Repository Structure
-
-```text
-├── data/
-│   └── benchmark_data.csv        # Tabulated execution times and metrics
-├── graphs/
-│   ├── execution_time_comparison.png
-│   ├── generate_plots.py         # Script that generates the benchmark plots
-│   └── speedup_comparison.png
-├── presentation/
-│   └── pgc_lab_evaluation.pptx   # Final Lab Defense Slide Deck
-├── report/
-│   ├── lab_evaluation_report.md  # Detailed technical evaluation report
-│   └── sequential-omp-mpi-benchmark-execution.png  # Screenshot of benchmark runs
-├── results/
-│   └── terminal_outputs.txt      # Raw console logs from WSL execution
-├── src/
-│   ├── baseline.c                # Single-threaded sequential implementation
-│   ├── omp_bench.c               # OpenMP shared-memory implementation
-│   └── mpi_bench.c               # MPI distributed-memory implementation
-└── README.md
 ```
---- 
+README.md          this file
+data/              dataset notes (the data itself is not in the zip)
+src/               source code + benchmark and analysis scripts
+results/           raw runs, summary table, system info, data-cleaning log
+graphs/            the six result graphs (PNG)
+report/            the presentation (PPTX)
+```
 
-## 4. Step-by-Step Procedure & Execution
+## 3. Environment
 
-### Environment Prerequisites
+```
+CPU      : 12th Gen Intel(R) Core(TM) i5-12450H (1 socket; 8 cores = 4P + 4E; WSL shows 12 logical CPUs)
+lscpu    : Thread(s) per core: 2 | Core(s) per socket: 6 (as exposed by WSL) | Socket(s): 1
+nproc    : 12
+Memory   : 7.6 GiB total, 2.0 GiB swap (WSL2)
+OS       : Ubuntu 24.04 (noble) on WSL2
+Compiler : gcc 13.3.0 (-O2); Open MPI 4.1.6
+```
 
-- Linux / WSL2 Ubuntu environment
-- GCC compiler with OpenMP support
-- MPICH runtime and developer headers
+## 4. Commands
 
+### 4.1 Setup (WSL Ubuntu)
 ```bash
-sudo apt-get update
-sudo apt-get install -y build-essential mpich libmpich-dev python3-pip
+sudo apt update
+sudo apt install openmpi-bin libopenmpi-dev python3-pandas -y
+mpicc --version && mpirun --version
+mkdir -p ~/pgc_project/data && cp -r /mnt/c/Users/<you>/Downloads/archive ~/pgc_project/data/
 ```
 
-### Step 1: Compilation
-
-All targets are compiled with aggressive optimization (`-O3`):
-
+### 4.2 Prepare the data
 ```bash
-# Sequential Baseline
-gcc -O3 src/baseline.c -o baseline
-
-# OpenMP Binary
-gcc -O3 -fopenmp src/omp_bench.c -o omp_bench
-
-# MPI Binary
-mpicc -O3 src/mpi_bench.c -o mpi_bench
+cd ~/pgc_project
+python3 scripts/prepare_data.py | tee results/prepare_data_output.txt
+FULL=$(( $(stat -c %s data/trip_distance_all.bin) / 8 ))     # 47248723
 ```
 
-### Step 2: Benchmarking Execution
-
-Execute the binaries across varying core and thread counts:
-
+### 4.3 Compile
 ```bash
-# 1. Sequential Execution
-./baseline
-
-# 2. OpenMP Multi-threaded Runs
-OMP_NUM_THREADS=2 ./omp_bench
-OMP_NUM_THREADS=4 ./omp_bench
-OMP_NUM_THREADS=8 ./omp_bench
-
-# 3. MPI Multi-process Runs
-mpirun -np 2 ./mpi_bench
-mpirun -np 4 ./mpi_bench
-mpirun -np 8 ./mpi_bench
+gcc -O2 src/seq.c -o src/seq -lm
+gcc -O2 -fopenmp src/omp.c -o src/omp -lm
+mpicc -O2 src/mpi_stats.c -o src/mpi_stats -lm
 ```
 
----
+### 4.4 Run one configuration
+```bash
+./src/seq data/trip_distance_all.bin $FULL 1                  # args: file N mode
+./src/omp data/trip_distance_all.bin $FULL 1 8                # args: file N mode threads
+mpirun --use-hwthread-cpus -np 8 ./src/mpi_stats data/trip_distance_all.bin $FULL 1   # args: file N mode
+```
+`--use-hwthread-cpus` is needed because WSL reports fewer physical cores than the 8 or 12 processes we start.
+Each program prints a `CSV,...` line that the benchmark script collects.
 
-## 5. Experimental Results & Performance Metrics
+### 4.5 Full benchmark (about 30-40 min, charger on, nothing else running)
+```bash
+cd ~/pgc_project
+nohup ./src/bench_local.sh > results/bench_log.txt 2>&1 &
+wc -l results/local_results.csv      # expect 551 (1 header + 550 runs)
+```
 
-### Evaluation Formulas
+### 4.6 Speedup, efficiency and graphs
+```bash
+python3 src/analyze.py     # reads results/local_results.csv, writes results/summary_stats.csv and graphs/*.png
+```
 
-$$S_p = \frac{T_1}{T_p}$$
+## 5. How the numbers are defined
 
-$$E_p = \left(\frac{S_p}{p}\right) \times 100\%$$
+- Every point is the **mean of 5 runs**.
+- **Time** = compute time for sequential and OpenMP; **scatter + compute + reduce** for MPI. File reading is excluded for all three so they are comparable.
+- MPI communication is the largest value among the processes; local compute is total minus communication (a close estimate).
+- **Speedup** = sequential time / parallel time at the same data size and mode.
+- **Efficiency** = speedup / number of workers.
 
-Where:
+## 6. Results (full dataset, 47,248,723 records)
 
-- $T_1 = 0.0653\ s$ (sequential single-core wall time)
-- $T_p$ = execution time using $p$ processing units (threads or processes)
+Sequential baseline: **0.101 s** (mode 0, light) and **1.104 s** (mode 1, heavy).
 
-### Results Table
+### Mode 0, light operation
+| Workers | OpenMP time (s) | OpenMP speedup | OpenMP eff. | MPI time (s) | MPI comm (s) | MPI speedup | MPI eff. |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.103 | 0.99x | 99% | 0.300 | 0.175 | 0.34x | 34% |
+| 2 | 0.054 | 1.86x | 93% | 0.206 | 0.146 | 0.49x | 25% |
+| 4 | 0.029 | 3.45x | 86% | 0.205 | 0.175 | 0.49x | 12% |
+| 8 | 0.030 | 3.34x | 42% | 0.226 | 0.204 | 0.45x | 6% |
+| 12 | 0.042 | 2.38x | 20% | 0.378 | 0.359 | 0.27x | 2% |
 
-| Paradigm   | Processing Units (p) | Execution Time (T<sub>p</sub>) | Speedup (S<sub>p</sub>) | Efficiency (E<sub>p</sub>) | Verification Invariant       |
-|------------|:--------------------:|:------------------------------:|:-----------------------:|:--------------------------:|:----------------------------:|
-| Sequential | 1                    | 0.0653 s                       | 1.00×                   | 100.0%                     | 350000000.00 (PASS)          |
-| OpenMP     | 2                    | 0.0434 s                       | 1.50×                   | 75.2%                      | 350000000.00 (PASS)          |
-| OpenMP     | 4                    | 0.0327 s                       | 2.00×                   | 49.9%                      | 350000000.00 (PASS)          |
-| OpenMP     | 8                    | 0.0250 s                       | 2.61×                   | 32.7%                      | 350000000.00 (PASS)          |
-| MPI        | 2                    | 0.0378 s                       | 1.73×                   | 86.4%                      | 350000000.00 (PASS)          |
-| MPI        | 4                    | 0.0249 s                       | 2.62×                   | 65.6%                      | 350000000.00 (PASS)          |
-| MPI        | 8                    | 0.0246 s                       | 2.65×                   | 33.2%                      | 350000000.00 (PASS)          |
+### Mode 1, heavy operation
+| Workers | OpenMP time (s) | OpenMP speedup | OpenMP eff. | MPI time (s) | MPI comm (s) | MPI speedup | MPI eff. |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1.083 | 1.02x | 102% | 1.286 | 0.172 | 0.86x | 86% |
+| 2 | 0.553 | 2.00x | 100% | 0.688 | 0.138 | 1.60x | 80% |
+| 4 | 0.383 | 2.88x | 72% | 0.509 | 0.201 | 2.17x | 54% |
+| 8 | 0.279 | 3.96x | 49% | 0.531 | 0.247 | 2.08x | 26% |
+| 12 | 0.308 | 3.59x | 30% | 1.001 | 0.788 | 1.10x | 9% |
 
----
+### Effect of data size (8 workers)
 
-## 6. In-Depth Comparative Analysis
+**Mode 0, light**
 
-### 1. Superior Early Scaling of MPI (p = 2, 4)
+| N (million) | Sequential (s) | OpenMP 8T (s) | OpenMP speedup | MPI 8P (s) | MPI speedup |
+| --- | --- | --- | --- | --- | --- |
+| 1.0 | 0.0025 | 0.0072 | 0.35x | 0.0083 | 0.31x |
+| 5.0 | 0.0197 | 0.0054 | 3.64x | 0.0225 | 0.88x |
+| 10.0 | 0.0273 | 0.0090 | 3.04x | 0.0447 | 0.61x |
+| 25.0 | 0.0611 | 0.0156 | 3.90x | 0.1093 | 0.56x |
+| 47.2 | 0.1012 | 0.0303 | 3.34x | 0.2261 | 0.45x |
 
-MPI outperformed OpenMP at moderate parallelism (1.73× vs 1.50× at p=2; 2.62× vs 2.00× at p=4). In MPI, each process allocates an isolated buffer of size N/p, providing dedicated cache spatial locality and avoiding cache-line invalidation over a shared heap.
+**Mode 1, heavy**
 
-### 2. OpenMP Shared-Memory Bus Saturation
+| N (million) | Sequential (s) | OpenMP 8T (s) | OpenMP speedup | MPI 8P (s) | MPI speedup |
+| --- | --- | --- | --- | --- | --- |
+| 1.0 | 0.0286 | 0.0064 | 4.50x | 0.0113 | 2.53x |
+| 5.0 | 0.1188 | 0.0261 | 4.56x | 0.0422 | 2.81x |
+| 10.0 | 0.2582 | 0.0500 | 5.16x | 0.0800 | 3.23x |
+| 25.0 | 0.5706 | 0.1131 | 5.05x | 0.2115 | 2.70x |
+| 47.2 | 1.1042 | 0.2789 | 3.96x | 0.5312 | 2.08x |
 
-OpenMP showed consistent speedup up to 8 threads (2.61×), but efficiency dropped from 75.2% to 32.7%. For a streaming array transformation, multiple threads concurrently accessing a shared memory space saturate the physical DDR bus bandwidth.
+### Graphs
 
-### 3. MPI Communication Saturation Plateau (p = 8)
+| | |
+| --- | --- |
+| Speedup | ![speedup](graphs/g2_speedup.png) |
+| Efficiency | ![efficiency](graphs/g3_efficiency.png) |
+| MPI compute vs communication | ![mpi breakdown](graphs/g4_mpi_breakdown.png) |
+| Speedup vs data size | ![speedup vs size](graphs/g6_speedup_vs_size.png) |
+| Time vs workers | ![time](graphs/g1_time.png) |
+| Time vs data size | ![time vs size](graphs/g5_time_vs_size.png) |
 
-From 4 to 8 processes, MPI execution time plateaued (0.0249 s → 0.0246 s). Once per-process computation dropped below 25 ms, inter-process communication overhead and tree barrier latency in `MPI_Reduce` counterbalanced additional compute parallelism.
+## 7. Correctness check
 
----
+Sequential, OpenMP and MPI give identical results on the full data:
 
-## 7. Conclusions & Architectural Trade-offs
+```
+Mean = 2.870588  Std = 3.563598  Min = 0.00  Max = 500.00
+Trips > 10 miles = 2425865
+Log-mean = 1.122182  Log-std = 0.609154          (mode 1)
+Histogram first 5 bins: 11441582 15924938 7577839 3747122 2094280
+```
 
-- **OpenMP** is preferable for shared-memory workstations where zero-copy, in-place processing is needed without duplicating address space overhead.
-- **MPI** is essential for scaling across cluster nodes where physical memory is distributed, and delivers high cache efficiency when data fits well in per-process cache tiers.
-- **Hybrid HPC Model (MPI + OpenMP)** is optimal for production clusters: MPI distributes workloads across physical cluster nodes, while OpenMP parallelizes loops across cores within each node.
+## 8. Analysis
+
+- **OpenMP wins on one machine.** Best speedup 3.96x (heavy, 8 threads) and 3.45x (light, 4 threads). Threads share the array, so nothing is copied.
+- **MPI pays for communication.** At 8 processes, communication is 47% of MPI's time in heavy mode and 90% in light mode. Rank 0 sends all 378 MB whatever the process count, which acts as a serial fraction (Amdahl's law).
+- **Light work does not pay off in MPI.** The maths takes about 0.1 s, less than the time to move the data, so MPI is slower than sequential at every size and process count (at most 0.49x on the full data).
+- **Heavy work scales in both models**, but MPI reaches only 2.17x (4 processes) against OpenMP's 3.96x.
+- **Small data hurts OpenMP too.** In light mode with 1 M records, 8 threads are slower than sequential (0.35x): thread start-up costs more than the work.
+- **12 workers are worse than 8.** The CPU has 8 physical cores (4 performance + 4 efficiency) and 12 logical CPUs, so extra workers share cores. MPI at 12 processes drops to 1.10x in heavy mode, with communication rising to 0.79 s.
+- **MPI with 1 process is below 1x** (0.86x heavy) because scatter still copies the whole array into a second buffer.
+
+## 9. Limitations and next steps
+
+- All MPI runs so far share memory inside one laptop, so real network cost is not included.
+- One dataset, one kind of statistics, one machine (WSL2).
+- **Planned:** run MPI across 4 Ubuntu VMs (install Open MPI 4.1.6 on each, passwordless SSH from the master, a hostfile, copy the binary and data to the same path on every node) and compare with the local MPI results.
