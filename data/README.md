@@ -1,4 +1,4 @@
-# data/
+# Data
 
 The dataset is NOT stored in this zip (CSV 6.9 GB, binary 378 MB).
 
