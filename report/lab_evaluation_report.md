@@ -1,4 +1,4 @@
-# Parallel and GPU Computing (PGC) Lab Evaluation Report
+# Parallel and GPU Computing Mini Project Report
 
 ## Experiment: OpenMP vs. MPI for Large-Scale Data Processing
 
